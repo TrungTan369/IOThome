@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <BlynkSimpleEsp32.h>
 #include "DHT.h"
-#include "Audio.h"
+// #include "Audio.h"
 #include "scheduler.h"
 
 #define servo_pin 13
@@ -20,9 +20,9 @@
 #define DHTTYPE    DHT11     // DHT 11
 #define DHTPIN 14
 #define PIR_PIN 27
-#define MAX98357A_I2S_DOUT  15
-#define MAX98357A_I2S_BCLK 2
-#define MAX98357A_I2S_LRC  4
+// #define MAX98357A_I2S_DOUT  15
+// #define MAX98357A_I2S_BCLK 2
+// #define MAX98357A_I2S_LRC  4
 //
 
 DHT dht(DHTPIN, DHTTYPE);
@@ -31,7 +31,7 @@ Adafruit_NeoPixel strip(4, led_pin, NEO_GRB + NEO_KHZ800);
 Servo door;
 ListTask Ltask;
 WiFiClient client;
-Audio audio;
+// Audio audio;
 hw_timer_s * timer = NULL;
 portMUX_TYPE timerMux = portMUX_INITIALIZER_UNLOCKED;
 const char * ssid = "ahaha";
@@ -42,7 +42,8 @@ bool led_state = 0;
 bool motion_mode = 0;
 bool light_mode = 0;
 volatile bool motionDetected = false;
-
+const char* address = "api.thingspeak.com";
+String api_key = "VCRP7KE1JWRSG8ZG";
 
 void led_on();
 void led_off();
@@ -74,12 +75,12 @@ void setup() {
   lcd.clear();
   //
   WiFi.begin(ssid, pass);
-  Serial.print("Connecting WiFi...");
+  // Serial.print("Connecting WiFi...");
   while(WiFi.status() != WL_CONNECTED){
     delay(500);
-    Serial.print(".");
+    // Serial.print(".");
   }
-  Serial.print("IP: ");
+  // Serial.print("IP: ");
   Serial.println(WiFi.localIP());
   //
   door.attach(servo_pin);
@@ -91,11 +92,11 @@ void setup() {
   //
   attachInterrupt(digitalPinToInterrupt(PIR_PIN), detectMotion, RISING);
   //
-  audio.setPinout(MAX98357A_I2S_BCLK, MAX98357A_I2S_LRC, MAX98357A_I2S_DOUT);
-  audio.setVolume(15);
-  audio.connecttohost("http://vis.media-ice.musicradio.com/HeartNorthWestMP3");
+  // audio.setPinout(MAX98357A_I2S_BCLK, MAX98357A_I2S_LRC, MAX98357A_I2S_DOUT);
+  // audio.setVolume(15);
+  // audio.connecttohost("http://vis.media-ice.musicradio.com/HeartNorthWestMP3");
   //
-  Ltask.SCH_Add_Task(debug, 1000, 1000);
+  // Ltask.SCH_Add_Task(debug, 1000, 1000);
   Ltask.SCH_Add_Task(read_light_sensor, 2000, 3000);
   Ltask.SCH_Add_Task(read_DHT11, 1000, 5000);
   Ltask.SCH_Add_Task(IS_led_auto_mode, 3000, 1000);
@@ -125,7 +126,7 @@ BLYNK_WRITE(V5){
 void loop() {
   Ltask.SCH_Dispatch_Task();
   Blynk.run();
-  audio.loop();
+  // audio.loop();
   // Serial.print("TEST PIR: ");
   // Serial.println(digitalRead(PIR_PIN));
   // delay(100);
@@ -170,7 +171,7 @@ void read_DHT11(){
   uint8_t h= dht.readHumidity();
   uint8_t t = dht.readTemperature();
   if (isnan(h) || isnan(t)) {
-    Serial.println(F("Failed to read from DHT sensor!"));
+    // Serial.println(F("Failed to read from DHT sensor!"));
     return;
   }
   Blynk.virtualWrite(V2, t);
@@ -190,17 +191,23 @@ void read_DHT11(){
   lcd.print("%");
 }
 void IS_led_auto_mode(){
-  if(motion_mode){
+  if(motionDetected){
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("DA PHAT HIEN");
+    lcd.setCursor(0,1);
+    lcd.print("CO CHUYEN DONG");
     // Serial.println("IN MODE AUTO LED");
-    if(motionDetected){
+    if(motion_mode){
       // Serial.println("DETECTED!!!");
       if(!led_state){
         // Serial.println("ON LED");
         led_on();
         Ltask.SCH_Add_Task(led_off, 3000, 0);
       }
-      motionDetected = 0;
+      
     }
+    motionDetected = 0;
   }
   if(light_mode){
     if(digitalRead(light_pin)){
@@ -212,4 +219,21 @@ void IS_led_auto_mode(){
 }
 void IRAM_ATTR detectMotion() {
   motionDetected = true; 
+}
+void http_get(String a) {
+  if (WiFi.status() != WL_CONNECTED) {
+      Serial.println("Wifi lost!!");
+      return;
+  }
+
+  Serial.println("\n Send to ThingSpeak...");
+  
+  if (client.connect(address, 80)) {
+      String getUrl = "/update?api_key=" + api_key + "&field1=" + a;
+      
+      client.println("GET " + getUrl + " HTTP/1.1");
+      client.println("Host: api.thingspeak.com");
+      client.println("Connection: close");
+      client.println();
+  }
 }
